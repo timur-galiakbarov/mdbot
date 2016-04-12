@@ -3,7 +3,7 @@ var promise = require('promise');
 var config = require('./../../config.js');
 var morph = require('./morph/yandexSpeechKit.js')(config, promise, request);
 var natural = require('./morph/natural.js')(config, promise, request);
-
+var staticCommands = require('./data/staticCommands.js')();
 var message = {};
 natural.init();
 
@@ -11,13 +11,18 @@ var questionsContext = (function (mongoClient) {
 
     var currMessage = {};
     var mongod = mongoClient;
+    var defaultMenu = JSON.stringify({
+        keyboard: [
+            ['Меню']
+        ]
+    });
 
     var getQuestionsContext = function (msg) {
 
         currMessage = msg;
         var answer = {
             text: '',
-            menu: {}
+            menu: defaultMenu
         };
 
         var resolve,
@@ -30,6 +35,15 @@ var questionsContext = (function (mongoClient) {
         //Морфология Mystem
         var wordsArr = [];
         var queryString = [];
+        if (staticCommands[currMessage.text.toLowerCase()]){
+            var commadsRequest = staticCommands[currMessage.text.toLowerCase()]();
+            var answer = {
+                text: commadsRequest.text,
+                menu: commadsRequest.menu || defaultMenu
+            };
+            resolve(answer);
+            return Q;
+        }
         var mystem = require('mystem-wrapper')();
         mystem.analyze(msg.text)
             .then(function (obj) {
@@ -62,6 +76,7 @@ var questionsContext = (function (mongoClient) {
                     query.toArray(getContextAccordingRules);
                 } else {
                     answer.text = "К сожалению, я не знаю того, что вы мне написали. Однако, я запишу ваш вопрос в список незнакомых, и модераторы добавят ответ.";
+                    answer.menu = defaultMenu;
                     resolve(answer);
                     //Сохранение в БД нераспознанного контекста
                     saveUnIdentifiedQuestion({
