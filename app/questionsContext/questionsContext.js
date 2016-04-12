@@ -5,23 +5,14 @@ var morph = require('./morph/yandexSpeechKit.js')(config, promise, request);
 var natural = require('./morph/natural.js')(config, promise, request);
 
 var message = {};
+natural.init();
 
 var questionsContext = (function (mongoClient) {
 
     var currMessage = {};
-    var mongod;
-
-    mongoClient.connect(config.dbconn, function (err, db) {
-        if (err)
-            return;
-        mongod = db;
-    });
+    var mongod = mongoClient;
 
     var getQuestionsContext = function (msg) {
-
-        /*-----*/
-        natural.init();
-        /*-----*/
 
         currMessage = msg;
         var answer = {
@@ -36,48 +27,46 @@ var questionsContext = (function (mongoClient) {
                 reject = promiseReject;
             });
 
-        //Запрашиваем морфологию
-        var wordObj = morph.getMorph(msg.text);
+        //Морфология Mystem
         var wordsArr = [];
-        wordObj.then(function (obj) {
-            var queryString = [];
-            obj.Morph.forEach(function (word) {
-                word.Lemmas.forEach(function (point) {
+        var queryString = [];
+        var mystem = require('mystem-wrapper')();
+        mystem.analyze(msg.text)
+            .then(function (obj) {
+                obj.forEach(function (item) {
+                    //console.log(item.analysis);
                     wordsArr.push({
-                        text: point.Text,
-                        grammems: point.Grammems
+                        text: item.analysis[0].lex
                     });
                     queryString.push({
-                        'entryPoints': point.Text
+                        entryPoints: item.analysis[0].lex
                     });
                 });
-            });
-            console.log(wordsArr);
-            /*Поиск списка контекстов по входящим словам*/
-            findContext(queryString);
-        }).catch(function (err) {
-            console.log("Ошибка");
-            console.log(err);
-        });
+                /*Поиск списка контекстов по входящим словам*/
+                findContext(queryString);
+            })
+            .catch(function (err) {
+                console.log("Ошибулина в Mystem!");
+                console.log(err);
+                //Тут надо сделать что что-то пошло не так
+            })
+            .finally(mystem.close);
 
         return Q;
 
         function findContext(queryString) {/*Поиск списка контекстов по входящим словам*/
             var query = mongod.collection('context').find({$or: queryString});
             query.count().then(function (resCount) {
-                console.log("найдено контекстов - " + resCount);
+                //console.log("найдено контекстов - " + resCount);
                 if (resCount > 0) {
                     query.toArray(getContextAccordingRules);
                 } else {
                     answer.text = "К сожалению, я не знаю того, что вы мне написали. Однако, я запишу ваш вопрос в список незнакомых, и модераторы добавят ответ.";
                     resolve(answer);
                     //Сохранение в БД нераспознанного контекста
-                    /*saveQuestion({
-                     message: currMessage,
-                     answer: {},
-                     possibleContext: [],
-                     recognize: 'negative'
-                     });*/
+                    saveUnIdentifiedQuestion({
+                        message: currMessage
+                    });
                 }
             });
         }
@@ -153,7 +142,11 @@ var questionsContext = (function (mongoClient) {
                 maxIndexesContext.forEach(function (item) {
                     possibleQuestions.push(contextList[item.indexContext].defaultQuestion);
                 });
-                console.log(possibleQuestions);
+                saveUnIdentifiedQuestion({
+                    message: currMessage,
+                    possibleVariants: possibleQuestions
+                });
+                //console.log(possibleQuestions);
 
                 answer.menu = JSON.stringify({
                     keyboard: [
@@ -170,24 +163,28 @@ var questionsContext = (function (mongoClient) {
                         ['Меню']
                     ]
                 });
+                //Сохранение в БД заданного вопроса
+                saveQuestion({
+                    message: currMessage,
+                    context: contextList[index].title,
+                    contextId: contextList[index]._id
+                });
             }
             resolve(answer);
+        }
 
-            //Сохранение в БД заданного вопроса
-            /*saveQuestion({
-             message: currMessage,
-             answer: answer,
-             possibleContext: [],
-             recognize: 'positive'
-             });*/
+        function saveUnIdentifiedQuestion(obj) {
+            mongod.collection("unidentifiedQuestions").insert({
+                message: obj.message,
+                possibleVariants: obj.possibleVariants ? obj.possibleVariants : []
+            });
         }
 
         function saveQuestion(obj) {
-            mongod.collection("questionStats").insert({
-                message: obj.currMessage,
-                answer: obj.answer,
-                possibleContext: obj.possibleContext,
-                recognize: possibleContext.recognize
+            mongod.collection("contextStats").insert({
+                message: obj.message,
+                context: obj.context,
+                contextId: obj.contextId
             });
         }
 
@@ -200,3 +197,41 @@ var questionsContext = (function (mongoClient) {
 });
 
 module.exports = questionsContext;
+
+//Запрашиваем морфологию Яндекс
+/*var wordObj = morph.getMorph(msg.text);
+ var wordsArr = [];
+ wordObj.then(function (obj) {
+ var queryString = [];
+ obj.Morph.forEach(function (word) {
+ word.Lemmas.forEach(function (point) {
+ wordsArr.push({
+ text: point.Text,
+ grammems: point.Grammems
+ });
+ queryString.push({
+ 'entryPoints': point.Text
+ });
+ });
+ });
+ console.log(wordsArr);
+ /!*Поиск списка контекстов по входящим словам*!/
+ findContext(queryString);
+ }).catch(function (err) {
+ console.log("Ошибка");
+ console.log(err);
+ });*/
+
+//Морфология natural
+/*
+ var wordObj = natural.api.tokenizer(msg.text);
+ var wordsArr = [];
+ var queryString = [];
+ wordObj.forEach(function (word) {
+ wordsArr.push({
+ text: word
+ });
+ queryString.push({
+ naturalEntryPoints: word
+ });
+ });*/

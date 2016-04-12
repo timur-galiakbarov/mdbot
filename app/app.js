@@ -1,18 +1,20 @@
 var config = require('./../config.js');
-var mongoClient = require('mongodb').MongoClient;
 var telegramClient = require('./clients/telegram.js');
 
-var questionsContext = require('./questionsContext/questionsContext.js')(mongoClient);
+var questionsContext;
 
+
+/*console.log(config.dbconn);
 mongoClient.connect(config.dbconn, function (err, db) {
     if (err) {
         throw err;
     }
-});
+});*/
 
 var app = (function () {
 
-    var init = function () {
+    var init = function (mongod) {
+        questionsContext = require('./questionsContext/questionsContext.js')(mongod);
         telegramClient.initBot(getAnswer);
     };
     var sendMessage = function (){

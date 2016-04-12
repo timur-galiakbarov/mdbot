@@ -18,18 +18,24 @@ var adminApp = (function () {
         mongoClient.connect(config.dbconn, function (err, db) {
             if (err)
                 return;
+
+            console.log("mongodb connection - ok");
             mongod = db;
+            initApp();
         });
-        /*Инициализация админ панели*/
-        app.use(cookieParser('secret'));
-        modules.auth = new authModule(mongod);
-        /*Маршрутизация---------------------------------*/
-        modules.route = new route(app, mongo_express, mongo_express_config, express,  __dirname, modules.auth);
-        app.listen(app.get('port'), function () {
-            console.log('Node app is running on port', app.get('port'));
-        });
-        /*Инициализация Telegram-бота*/
-        tgBot.init();
+
+        function initApp(){
+            /*Инициализация админ панели*/
+            app.use(cookieParser('secret'));
+            modules.auth = new authModule(mongod);
+            /*Маршрутизация---------------------------------*/
+            modules.route = new route(app, mongo_express, mongo_express_config, express,  __dirname, modules.auth);
+            app.listen(app.get('port'), function () {
+                console.log('Node app is running on port', app.get('port'));
+            });
+            /*Инициализация Telegram-бота*/
+            tgBot.init(mongod);
+        }
     };
 
     return {
