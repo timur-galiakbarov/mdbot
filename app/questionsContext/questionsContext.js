@@ -3,12 +3,11 @@ var promise = require('promise');
 var config = require('./../../config.js');
 var morph = require('./morph/yandexSpeechKit.js')(config, promise, request);
 var natural = require('./morph/natural.js')(config, promise, request);
-var staticCommands = require('./data/staticCommands.js')();
 var message = {};
 natural.init();
 
 var questionsContext = (function (mongoClient) {
-
+    var staticCommands = require('./data/staticCommands.js')(mongoClient);
     var currMessage = {};
     var mongod = mongoClient;
     var defaultMenu = JSON.stringify({
@@ -36,12 +35,13 @@ var questionsContext = (function (mongoClient) {
         var wordsArr = [];
         var queryString = [];
         if (staticCommands[currMessage.text.toLowerCase()]){
-            var commadsRequest = staticCommands[currMessage.text.toLowerCase()]();
-            var answer = {
-                text: commadsRequest.text,
-                menu: commadsRequest.menu || defaultMenu
-            };
-            resolve(answer);
+            staticCommands[currMessage.text.toLowerCase()]().then(function(res){
+                var answer = {
+                    text: res.text,
+                    menu: res.menu || defaultMenu
+                };
+                resolve(answer);
+            });
             return Q;
         }
         var mystem = require('mystem-wrapper')();
