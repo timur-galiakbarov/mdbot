@@ -6,7 +6,7 @@ var staticCommands = (function (mongod) {
         reject,
         Q;
 
-    function createPromise(){
+    function createPromise() {
         return new promise(function (promiseResolve, promiseReject) {
             resolve = promiseResolve;
             reject = promiseReject;
@@ -14,9 +14,21 @@ var staticCommands = (function (mongod) {
     }
 
     var commands = {
+        "/start": function () {
+            Q = createPromise();
+            resolve({
+                text: "Здравствуйте! я бот модульбанк.\nНачните диалог со мной",
+                menu: JSON.stringify({
+                    keyboard: [
+                        ['Что может бот?'],
+                        ["Чего не может бот?"]
+                    ]
+                })
+            });
+            return Q;
+        },
         "меню": function () {
             Q = createPromise();
-            console.log("ok");
             resolve({
                 text: "Моё меню",
                 menu: JSON.stringify({
